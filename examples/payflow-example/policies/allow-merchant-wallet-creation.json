@@ -1,0 +1,4 @@
+{
+    "effect": "EFFECT_ALLOW",
+    "condition": "activity.type == 'ACTIVITY_TYPE_CREATE_WALLET' || activity.type == 'ACTIVITY_TYPE_CREATE_WALLET_ACCOUNTS'"
+}
