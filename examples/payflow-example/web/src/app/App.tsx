@@ -1,12 +1,10 @@
 import { useState, useEffect, useCallback } from "react";
-import { Header } from "./components/Header";
 import { ActionMenu } from "./components/ActionMenu";
 import { ActivityLog } from "./components/ActivityLog";
 import { WalletOverview } from "./components/WalletOverview";
 import { CreateWalletModal } from "./components/CreateWalletModal";
 import { SweepModal } from "./components/SweepModal";
 import { TestPolicyModal } from "./components/TestPolicyModal";
-import { Toaster } from "./components/ui/sonner";
 import { api, type Wallet, type Balance } from "./api";
 import { toast } from "sonner";
 
@@ -123,11 +121,7 @@ export default function App() {
   }, []);
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-950 via-slate-900 to-slate-950">
-      <Toaster position="top-right" />
-      
-      <Header />
-
+    <>
       <main className="container mx-auto px-4 py-8 max-w-7xl">
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
           {/* Left Column */}
@@ -154,7 +148,7 @@ export default function App() {
         </div>
       </main>
 
-      {/* Modals */}
+      {/* Modals - rendered outside main for proper z-index */}
       <CreateWalletModal
         open={createWalletOpen}
         onOpenChange={setCreateWalletOpen}
@@ -193,6 +187,6 @@ export default function App() {
         wallets={wallets}
         onLogActivity={addActivityLog}
       />
-    </div>
+    </>
   );
 }
