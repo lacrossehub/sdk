@@ -116,9 +116,14 @@ export function WalletOverview({ wallets, loading, onRefresh }: WalletOverviewPr
                   <span className="text-xs text-slate-400 truncate max-w-[120px]" title={wallet.walletName}>
                     {wallet.walletName || `ID: ${wallet.uuid.slice(0, 8)}`}
                   </span>
-                  <span className="text-sm font-semibold text-white">
-                    {parseFloat(wallet.balance).toFixed(2)} USDC
-                  </span>
+                  <div className="text-right">
+                    <div className="text-sm font-semibold text-white">
+                      {parseFloat(wallet.balance).toFixed(2)} USDC
+                    </div>
+                    <div className="text-xs text-slate-400">
+                      {parseFloat(wallet.ethBalance || "0").toFixed(4)} ETH
+                    </div>
+                  </div>
                 </div>
                 <div className="flex items-center justify-between">
                   <code className="text-xs text-slate-400">{truncateAddress(wallet.address)}</code>

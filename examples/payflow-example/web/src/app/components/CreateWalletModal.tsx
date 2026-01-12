@@ -37,6 +37,7 @@ export function CreateWalletModal({
         uuid: result.walletId,
         address: result.address,
         balance: "0.00",
+        ethBalance: "0.00",
         walletName: walletName || `Merchant-${Date.now()}`,
       };
 

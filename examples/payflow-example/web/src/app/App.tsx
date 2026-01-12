@@ -23,6 +23,7 @@ export type MerchantWallet = {
   uuid: string;
   address: string;
   balance: string;
+  ethBalance: string;
   walletName?: string;
 };
 
@@ -73,6 +74,7 @@ export default function App() {
           uuid: w.walletId,
           address: a.address,
           balance: balanceMap[a.address]?.usdc || "0.00",
+          ethBalance: balanceMap[a.address]?.eth || "0.00",
           walletName: w.walletName,
         }))
       );
