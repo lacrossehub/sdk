@@ -6,15 +6,21 @@ import { Button } from "./ui/button";
 import { useState } from "react";
 import { toast } from "sonner";
 
+interface OmnibusBalance {
+  usdc: string;
+  eth: string;
+}
+
 interface WalletOverviewProps {
   wallets: MerchantWallet[];
   loading?: boolean;
   onRefresh?: () => void;
+  omnibusBalance?: OmnibusBalance;
 }
 
 const OMNIBUS_ADDRESS = "0x99534f20E524954147373fF3a1A0a38FF7442662";
 
-export function WalletOverview({ wallets, loading, onRefresh }: WalletOverviewProps) {
+export function WalletOverview({ wallets, loading, onRefresh, omnibusBalance }: WalletOverviewProps) {
   const [copiedAddress, setCopiedAddress] = useState<string | null>(null);
 
   const truncateAddress = (address: string) => {
@@ -56,11 +62,23 @@ export function WalletOverview({ wallets, loading, onRefresh }: WalletOverviewPr
 
       {/* Omnibus Wallet */}
       <div className="mb-6 p-4 bg-gradient-to-br from-purple-900/30 to-blue-900/30 rounded-lg border border-purple-500/30">
-        <div className="flex items-center gap-2 mb-2">
-          <Wallet className="size-4 text-purple-400" />
-          <span className="text-xs font-semibold text-purple-300 uppercase tracking-wider">
-            Omnibus Wallet
-          </span>
+        <div className="flex items-center justify-between mb-2">
+          <div className="flex items-center gap-2">
+            <Wallet className="size-4 text-purple-400" />
+            <span className="text-xs font-semibold text-purple-300 uppercase tracking-wider">
+              Omnibus Wallet
+            </span>
+          </div>
+          {omnibusBalance && (
+            <div className="text-right">
+              <div className="text-sm font-semibold text-white">
+                {parseFloat(omnibusBalance.usdc).toFixed(2)} USDC
+              </div>
+              <div className="text-xs text-slate-400">
+                {parseFloat(omnibusBalance.eth).toFixed(4)} ETH
+              </div>
+            </div>
+          )}
         </div>
         <div className="flex items-center justify-between">
           <code className="text-sm text-slate-300">{truncateAddress(OMNIBUS_ADDRESS)}</code>

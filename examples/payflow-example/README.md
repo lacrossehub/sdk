@@ -89,7 +89,7 @@ eth send transaction feature is not enabled for organization <ORGANIZATION-ID>
 
 6. **No Gas Sponsorship**: In order for this to work, merchant wallets need to be seeded with a little bit of Sepolia ETH. In an ideal situation, a separate paymaster wallet would sponsor gas for the merchants so those addresses could be generated without being seeded with ETH.
 
-7. **Sequential Sweeping**: Addresses are swept one at a time rather than in parallel to simplify nonce management and error handling.
+7. **Wallets vs Addresses**: The take-home docs specified creating a Wallet for each customer rather than an account, which is probably not ideal if you're trying to scale past >100 merchants. I created a wallet and account for each customer here to stick to the docs. 
 
 ## Setup
 

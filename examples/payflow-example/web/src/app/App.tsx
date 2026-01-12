@@ -27,9 +27,12 @@ export type MerchantWallet = {
   walletName?: string;
 };
 
+const OMNIBUS_ADDRESS = "0x99534f20E524954147373fF3a1A0a38FF7442662";
+
 export default function App() {
   const [activityLog, setActivityLog] = useState<ActivityLogEntry[]>([]);
   const [wallets, setWallets] = useState<MerchantWallet[]>([]);
+  const [omnibusBalance, setOmnibusBalance] = useState<{ usdc: string; eth: string } | undefined>();
   const [loading, setLoading] = useState(true);
   const [createWalletOpen, setCreateWalletOpen] = useState(false);
   const [sweepAllOpen, setSweepAllOpen] = useState(false);
@@ -53,19 +56,28 @@ export default function App() {
       setLoading(true);
       const { wallets: turnkeyWallets } = await api.getWallets();
       
-      // Get all addresses
+      // Get all addresses (including omnibus)
       const allAddresses = turnkeyWallets.flatMap((w: Wallet) =>
         w.accounts.map((a) => a.address)
       );
       
+      // Also fetch omnibus balance
+      const addressesToFetch = [...allAddresses, OMNIBUS_ADDRESS];
+      
       // Fetch balances
       let balanceMap: Record<string, Balance> = {};
-      if (allAddresses.length > 0) {
-        const { balances } = await api.getBalances(allAddresses);
+      if (addressesToFetch.length > 0) {
+        const { balances } = await api.getBalances(addressesToFetch);
         balanceMap = balances.reduce((acc, b) => {
-          acc[b.address] = b;
+          acc[b.address.toLowerCase()] = b;
           return acc;
         }, {} as Record<string, Balance>);
+      }
+      
+      // Set omnibus balance
+      const omnibus = balanceMap[OMNIBUS_ADDRESS.toLowerCase()];
+      if (omnibus) {
+        setOmnibusBalance({ usdc: omnibus.usdc, eth: omnibus.eth });
       }
       
       // Convert to MerchantWallet format
@@ -73,8 +85,8 @@ export default function App() {
         w.accounts.map((a) => ({
           uuid: w.walletId,
           address: a.address,
-          balance: balanceMap[a.address]?.usdc || "0.00",
-          ethBalance: balanceMap[a.address]?.eth || "0.00",
+          balance: balanceMap[a.address.toLowerCase()]?.usdc || "0.00",
+          ethBalance: balanceMap[a.address.toLowerCase()]?.eth || "0.00",
           walletName: w.walletName,
         }))
       );
@@ -136,6 +148,7 @@ export default function App() {
               wallets={wallets} 
               loading={loading}
               onRefresh={refreshWallets}
+              omnibusBalance={omnibusBalance}
             />
           </div>
         </div>
