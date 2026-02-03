@@ -1,173 +1,304 @@
-# Disaster recovery with Turnkey
+# Disaster Recovery with Turnkey
 
-This example covers two disaster recovery (DR) paths for existing wallets:
+This example provides runnable code for implementing wallet disaster recovery using Turnkey's secure infrastructure. It covers two primary solution paths:
 
-1. **Direct Wallet Import (recommended)**: import wallet private keys into Turnkey’s secure enclaves for immediate operational recovery.
-2. **Encryption Key Escrow**: store only encryption keys in Turnkey; keep the encrypted recovery bundle in your own storage.
-
-> [!NOTE]
-> The instructions below are intentionally high-level and must be adapted to your organization’s security requirements.
+1. **Path 1: Direct Wallet Import (Recommended)** - Import existing wallet private keys directly into Turnkey's secure enclaves for immediate operational capability
+2. **Path 2: Encryption Key Escrow** - Use Turnkey to store encryption keys that protect externally-stored recovery bundles
 
 ## Prerequisites
 
-- A Turnkey organization with API credentials.
-- The Turnkey CLI installed (`tkhq/tkcli`).
-- An offline machine (recommended) for key material encryption.
+- Node.js v18+
+- A Turnkey organization with API credentials
+- For Path 1 sweep operations: An Ethereum wallet with funds (use Sepolia testnet for testing)
 
-## Path 1: Direct wallet import (recommended)
-
-**Best for**: fast recovery, automated fund sweeping, and centralized policy controls.
-
-### 1) Initialize an import bundle
+## Quick Start
 
 ```bash
-turnkey wallets init-import \
-  --user $USER_ID \
-  --import-bundle-output "./import_bundle.txt" \
-  --key-name your-api-key
+# Install dependencies
+pnpm install
+
+# Copy environment template
+cp .env.local.example .env.local
+
+# Edit .env.local with your Turnkey credentials
 ```
 
-This creates a temporary public key generated inside Turnkey’s enclave that you will use to encrypt the wallet material.
-
-### 2) Encrypt the wallet material offline
+## Environment Variables
 
 ```bash
-turnkey encrypt \
-  --user $USER_ID \
-  --import-bundle-input "./import_bundle.txt" \
-  --plaintext-input /dev/fd/3 3<<<"$MNEMONIC" \
-  --encrypted-bundle-output "./encrypted_bundle.txt" \
-  --encryption-key-name your-encryption-key
+# Required for all operations
+API_PUBLIC_KEY="<Turnkey API public key>"
+API_PRIVATE_KEY="<Turnkey API private key>"
+BASE_URL="https://api.turnkey.com"
+ORGANIZATION_ID="<Your Turnkey organization ID>"
+
+# Required for import operations (Path 1)
+USER_ID="<Turnkey user ID>"
+
+# Required for fund sweeping (Path 1)
+SIGN_WITH="<Ethereum address of imported wallet>"
+SAFE_TREASURY_ADDRESS="<Safe destination address>"
+
+# Optional: Alchemy API key for RPC
+ALCHEMY_API_KEY="<Your Alchemy API key>"
+
+# Required for Path 2
+ENCRYPTION_KEY_ID="<Private key ID from Turnkey>"
 ```
 
-**Tip:** using `/dev/fd/3` avoids writing sensitive material to disk.
+---
 
-### 3) Import into Turnkey
+## Path 1: Direct Wallet Import (Recommended)
 
-For HD wallets (mnemonic-based):
+**Best for:** Fast recovery, automated fund sweeping, and centralized policy controls.
+
+### Why This Approach
+
+| Benefit | Description |
+|---------|-------------|
+| Immediate Recovery | Keys are operational within Turnkey instantly—no decryption ceremonies |
+| Asset Agnostic | Single path for Bitcoin, Ethereum, Solana, and any SECP256k1/Ed25519 chains |
+| Fund Sweeping | SDK enables rapid fund movement without custom tooling |
+| Policy Controls | Full access to quorum policies, whitelisting, and transaction limits |
+
+### Import HD Wallet (Mnemonic)
+
+Import a BIP-39 mnemonic seed phrase into Turnkey:
 
 ```bash
-turnkey wallets import \
-  --user $USER_ID \
-  --name "DR-Wallet-BTC-Primary" \
-  --encrypted-bundle-input "./encrypted_bundle.txt" \
-  --key-name your-api-key
+pnpm run path1:import-wallet
 ```
 
-For raw private keys:
+This will:
+1. Initialize an import bundle (temporary encryption key from Turnkey's enclave)
+2. Prompt for your mnemonic seed phrase
+3. Encrypt the mnemonic to Turnkey's ephemeral public key
+4. Import the encrypted wallet into Turnkey
+
+### Import Raw Private Key
+
+Import a raw private key (Ethereum, Solana, or Bitcoin):
 
 ```bash
-turnkey private-keys import \
-  --user $USER_ID \
-  --name "DR-Key-ETH-Hot" \
-  --encrypted-bundle-input "./encrypted_bundle.txt" \
-  --curve CURVE_SECP256K1 \
-  --address-format ADDRESS_FORMAT_ETHEREUM \
-  --key-name your-api-key
+pnpm run path1:import-key
 ```
 
-### 4) (Optional) Sweep funds immediately
+Supports:
+- Ethereum/EVM (SECP256K1)
+- Solana (ED25519)
+- Bitcoin (SECP256K1)
 
-Once imported, you can use the SDK to sweep funds under policy control.
+### Sweep Funds
 
-```ts
-import { Turnkey } from "@turnkey/sdk-server";
-import { createWalletClient, http } from "viem";
-import { mainnet } from "viem/chains";
-import { createAccount } from "@turnkey/viem";
+After importing a wallet, sweep ETH to a safe treasury address:
 
-const turnkey = new Turnkey({
-  apiBaseUrl: "https://api.turnkey.com",
-  apiPublicKey: process.env.TURNKEY_API_PUBLIC_KEY,
-  apiPrivateKey: process.env.TURNKEY_API_PRIVATE_KEY,
-  defaultOrganizationId: process.env.TURNKEY_ORGANIZATION_ID,
-});
+```bash
+# Set the imported wallet address and destination
+export SIGN_WITH="0x..."  # Address of imported wallet
+export SAFE_TREASURY_ADDRESS="0x..."  # Your safe destination
 
-const turnkeyAccount = await createAccount({
-  client: turnkey.apiClient(),
-  organizationId: process.env.TURNKEY_ORGANIZATION_ID,
-  signWith: "0x...", // address of imported wallet
-});
-
-const walletClient = createWalletClient({
-  account: turnkeyAccount,
-  chain: mainnet,
-  transport: http(),
-});
-
-await walletClient.sendTransaction({
-  to: process.env.SAFE_TREASURY_ADDRESS,
-  value: BigInt(process.env.SWEEP_AMOUNT_WEI ?? "0"),
-});
+pnpm run path1:sweep-funds
 ```
 
-## Path 2: Encryption key escrow (alternative)
+Features:
+- Network selection (Sepolia testnet or Mainnet)
+- Gas estimation and balance checking
+- Confirmation prompts for safety
+- Transaction status tracking
 
-**Best for**: keeping wallet material outside Turnkey while still using Turnkey for authenticated access to encryption keys.
+### Security Architecture
 
-### Setup: create an encryption keypair in Turnkey
-
-```ts
-import { Turnkey } from "@turnkey/sdk-server";
-
-const turnkey = new Turnkey({
-  apiBaseUrl: "https://api.turnkey.com",
-  apiPublicKey: process.env.API_PUBLIC_KEY,
-  apiPrivateKey: process.env.API_PRIVATE_KEY,
-  defaultOrganizationId: process.env.ORGANIZATION_ID,
-});
-
-const { privateKeys } = await turnkey.apiClient().createPrivateKeys({
-  privateKeys: [{
-    privateKeyName: `recovery-key-${userId}`,
-    curve: "CURVE_P256",
-    addressFormats: [],
-  }],
-});
-
-const privateKeyId = privateKeys[0].privateKeyId;
-const { privateKey } = await turnkey.apiClient().getPrivateKey({ privateKeyId });
-const publicKey = privateKey.publicKey;
-
-// Encrypt recovery material locally and store it in your infrastructure.
-const encryptedBundle = await encryptWithPublicKey(publicKey, JSON.stringify(recoveryBundle));
-await customerApi.storeRecoveryBundle(userId, encryptedBundle);
+```
+┌─────────────────────────────────────────────────────────────────┐
+│                    OFFLINE CEREMONY                              │
+│  ┌──────────────┐    ┌──────────────┐    ┌──────────────┐       │
+│  │  Export Key  │───▶│  Encrypt to  │───▶│  Transport   │       │
+│  │  from Current│    │  Turnkey TEK │    │  Encrypted   │       │
+│  │  Provider    │    │              │    │  Bundle      │       │
+│  └──────────────┘    └──────────────┘    └──────────────┘       │
+└─────────────────────────────────────────────────────────────────┘
+                                │
+                                ▼
+┌─────────────────────────────────────────────────────────────────┐
+│                 TURNKEY SECURE ENCLAVE                          │
+│  ┌──────────────────────────────────────────────────────────┐   │
+│  │  HPKE Decryption  ───▶  Key Storage  ───▶  Policy Engine │   │
+│  │                        (Encrypted to      (Quorum, White-│   │
+│  │                         Quorum Key)        lists, Limits) │   │
+│  └──────────────────────────────────────────────────────────┘   │
+│                                                                  │
+│  Key material NEVER exists in plaintext outside the enclave     │
+└─────────────────────────────────────────────────────────────────┘
 ```
 
-### Recovery: export the encryption key and decrypt
+---
 
-```ts
-import { Turnkey } from "@turnkey/sdk-server";
-import { generateP256KeyPair, decryptExportBundle } from "@turnkey/crypto";
+## Path 2: Encryption Key Escrow
 
-const turnkey = new Turnkey({
-  apiBaseUrl: "https://api.turnkey.com",
-  apiPublicKey: process.env.API_PUBLIC_KEY,
-  apiPrivateKey: process.env.API_PRIVATE_KEY,
-  defaultOrganizationId: process.env.ORGANIZATION_ID,
-});
+**Best for:** Keeping wallet material outside Turnkey while using Turnkey for authenticated access to encryption keys.
 
-const targetKeyPair = generateP256KeyPair();
+### When to Use This Approach
 
-const exportResult = await turnkey.apiClient().exportPrivateKey({
-  privateKeyId: userEncryptionKeyId,
-  targetPublicKey: targetKeyPair.publicKeyUncompressed,
-});
+- Wallet recovery for non-custodial products kept separate from Turnkey
+- Backing up non-wallet material (API keys, secrets, credentials)
+- Compliance requires key material separation from infrastructure provider
 
-const decryptedKey = await decryptExportBundle({
-  exportBundle: exportResult.exportBundle,
-  embeddedKey: targetKeyPair.privateKey,
-  organizationId: process.env.ORGANIZATION_ID,
-  returnMnemonic: false,
-});
+### Setup: Create Encryption Key and Encrypt Bundle
 
-const encryptedBundle = await customerApi.getRecoveryBundle(userId);
-const recoveryBundle = JSON.parse(await decryptWithPrivateKey(decryptedKey, encryptedBundle));
+```bash
+pnpm run path2:setup
 ```
 
-## Guidance on choosing a path
+This will:
+1. Create a P-256 encryption keypair in Turnkey (for encryption only, not on-chain)
+2. Prompt for your recovery material (mnemonic, credentials, or custom data)
+3. Encrypt the bundle with Turnkey's public key
+4. Save the encrypted bundle locally (you move this to your secure storage)
 
-- **Direct wallet import** is best when you need immediate recovery and policy-controlled automation for sweeping funds.
-- **Encryption key escrow** is better when you must keep wallet material outside Turnkey or recover non-wallet secrets.
+**Important:** The encrypted bundle should be stored in YOUR infrastructure, not on Turnkey. This creates a 2-of-2 security model.
 
-For more detail, consult Turnkey’s disaster recovery architecture guidance and align with your internal security requirements.
+### Recovery: Export Key and Decrypt Bundle
+
+```bash
+# Set the encryption key ID (from setup step)
+export ENCRYPTION_KEY_ID="pk-..."
+
+pnpm run path2:recovery
+```
+
+This will:
+1. Generate a target keypair for receiving the exported key
+2. Export the encryption private key from Turnkey (may require quorum approval)
+3. Decrypt the export bundle to get the raw private key
+4. Load and decrypt your stored recovery bundle
+
+### Security Properties
+
+| Scenario | Impact |
+|----------|--------|
+| Customer infrastructure breach | Attacker gets encrypted blobs but cannot decrypt without Turnkey authentication |
+| Turnkey user breach | Attacker could access the encryption keypair but doesn't have the encrypted bundles |
+| Both breached | Both parties must be compromised simultaneously for full recovery |
+
+### Architecture
+
+```
+┌─────────────────────────────────────────────────────────────────┐
+│                    USER'S DEVICE                                 │
+│  ┌─────────────┐    ┌─────────────┐    ┌─────────────────────┐  │
+│  │ Public      │───▶│   Encrypt   │───▶│  Encrypted Bundle   │  │
+│  │ Key (local) │    │   Material  │    │  (to your storage)  │  │
+│  └─────────────┘    └─────────────┘    └─────────────────────┘  │
+│        ▲                                                         │
+│        │ Public Key shared                                       │
+└────────┼────────────────────────────────────────────────────────┘
+         │
+┌────────┼────────────────────────────────────────────────────────┐
+│        │              TURNKEY SECURE ENCLAVE                     │
+│  ┌─────┴───────────────────────────────────────────────────┐    │
+│  │  Encryption Keypair  ◀── Authentication Layer           │    │
+│  │  (P-256)             (email, passkey, API key, etc.)    │    │
+│  └──────────────────────────────────────────────────────────┘    │
+└─────────────────────────────────────────────────────────────────┘
+         │
+         │ Encrypted bundle stored externally
+         ▼
+┌─────────────────────────────────────────────────────────────────┐
+│              YOUR INFRASTRUCTURE                                 │
+│  ┌──────────────────────────────────────────────────────────┐   │
+│  │  Encrypted Recovery Bundle Storage                        │   │
+│  │  (Your servers, AWS S3, third-party vault, etc.)         │   │
+│  │                                                           │   │
+│  │  • Turnkey never sees this data                          │   │
+│  │  • You control storage location and policies             │   │
+│  │  • Bundle is useless without Turnkey authentication      │   │
+│  └──────────────────────────────────────────────────────────┘   │
+└─────────────────────────────────────────────────────────────────┘
+```
+
+---
+
+## Comparison: Path 1 vs Path 2
+
+| Factor | Path 1: Direct Import | Path 2: Encryption Escrow |
+|--------|----------------------|---------------------------|
+| Recovery Speed | Immediate—keys operational in Turnkey | Requires decryption ceremony |
+| Fund Sweeping | Built-in SDK support | Requires wallet tooling after decryption |
+| Key Storage | Turnkey holds wallet keys in enclave | Turnkey holds only encryption keys |
+| Material Location | Turnkey secure enclave | Your storage (encrypted) |
+| Complexity | Lower | Higher |
+| Best For | Enterprise DR, treasury backup | User recovery, compliance separation |
+| Security Model | Single party (authorized Turnkey users) | 2-of-2 (Turnkey auth + bundle access) |
+
+---
+
+## Security Best Practices
+
+### For Production Use
+
+1. **Air-gapped encryption**: Perform wallet import encryption on an offline machine
+2. **Hardware authenticators**: Use YubiKeys or passkeys for root quorum users
+3. **Quorum policies**: Configure M-of-N approval for key export operations
+4. **Geographic distribution**: Store backup authenticators in separate secure locations
+5. **Audit logging**: Document all DR operations with signed audit logs
+
+### Example Quorum Policy for DR Sweeping
+
+```json
+{
+  "policyName": "DR-Sweep-Only-Policy",
+  "effect": "EFFECT_ALLOW",
+  "condition": "activity.type == 'ACTIVITY_TYPE_SIGN_TRANSACTION_V2' && eth.tx.to in ['0xSAFE_TREASURY_1', '0xSAFE_TREASURY_2']",
+  "consensus": "approvers.any(user, user.id == 'DR_AUTOMATION_USER_ID')"
+}
+```
+
+This allows automated sweeping ONLY to pre-approved addresses.
+
+---
+
+## File Structure
+
+```
+disaster-recovery/
+├── README.md
+├── package.json
+├── tsconfig.json
+├── .env.local.example
+└── src/
+    ├── shared/
+    │   ├── turnkey.ts          # Turnkey client initialization
+    │   └── crypto-helpers.ts   # Encryption/decryption utilities
+    ├── path1-direct-import/
+    │   ├── import-wallet.ts    # Import HD wallet (mnemonic)
+    │   ├── import-private-key.ts # Import raw private key
+    │   └── sweep-funds.ts      # Sweep ETH to safe address
+    └── path2-encryption-escrow/
+        ├── setup.ts            # Create encryption key & encrypt bundle
+        └── recovery.ts         # Export key & decrypt bundle
+```
+
+---
+
+## Troubleshooting
+
+### "Missing required environment variable"
+Ensure all required variables are set in `.env.local`. Copy from `.env.local.example` and fill in your values.
+
+### "Quorum approval required"
+Your Turnkey organization has policies requiring multiple approvers. Coordinate with other key holders.
+
+### "Not enough ETH to sweep"
+The wallet balance is too low to cover gas costs. Fund the wallet or use a different network.
+
+### Import fails with encryption error
+Ensure you're using a valid BIP-39 mnemonic (12 or 24 words) or correctly formatted private key.
+
+---
+
+## Resources
+
+- [Turnkey Documentation](https://docs.turnkey.com)
+- [Turnkey SDK Server](https://www.npmjs.com/package/@turnkey/sdk-server)
+- [Turnkey Crypto](https://www.npmjs.com/package/@turnkey/crypto)
+- [Turnkey CLI](https://github.com/tkhq/tkcli)
