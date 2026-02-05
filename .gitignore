@@ -135,3 +135,6 @@ turnkey.json
 
 # turborepo
 .turbo
+
+# Local utility tools (not for public repo)
+examples/keymaker/
