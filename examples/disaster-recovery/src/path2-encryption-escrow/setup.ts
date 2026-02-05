@@ -314,6 +314,7 @@ async function createNewEncryptionKey(
         privateKeyName: keyName,
         curve: "CURVE_P256",
         addressFormats: [], // No blockchain addresses - this is for encryption only
+        privateKeyTags: [],
       },
     ],
   });
