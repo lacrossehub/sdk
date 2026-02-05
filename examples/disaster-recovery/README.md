@@ -21,7 +21,17 @@ pnpm install
 cp .env.local.example .env.local
 
 # Edit .env.local with your Turnkey credentials
+
+# Launch the interactive CLI
+pnpm start
 ```
+
+The interactive CLI provides a menu-driven interface for all disaster recovery operations:
+- Generate test wallets for testing/PoC
+- Path 1: Import wallets and sweep funds
+- Path 2: Set up and recover from encryption escrow
+
+You can also run individual scripts directly (see below).
 
 ## Environment Variables
 
@@ -45,6 +55,29 @@ ALCHEMY_API_KEY="<Your Alchemy API key>"
 # Required for Path 2
 ENCRYPTION_KEY_ID="<Private key ID from Turnkey>"
 ```
+
+---
+
+## Testing with Generated Wallets
+
+For testing/PoC purposes, you can generate a test wallet locally:
+
+```bash
+pnpm run generate-test-wallet
+```
+
+This will:
+1. Generate a random 12 or 24 word mnemonic, OR a raw private key
+2. Show the derived Ethereum address
+3. Optionally save to a JSON file for reference
+
+**Testing flow:**
+1. Generate a test wallet
+2. Fund it with Sepolia testnet ETH from a faucet:
+   - https://sepoliafaucet.com
+   - https://www.alchemy.com/faucets/ethereum-sepolia
+3. Import the wallet into Turnkey using `pnpm run path1:import-wallet`
+4. Test sweeping funds with `pnpm run path1:sweep-funds`
 
 ---
 

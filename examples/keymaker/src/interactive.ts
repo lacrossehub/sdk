@@ -45,6 +45,7 @@ async function mainMenu(): Promise<void> {
         { title: "🔑  Private Keys", value: "keys" },
         { title: "👛  Wallets", value: "wallets" },
         { title: "👤  Users", value: "users" },
+        { title: "🏗️   Organizations", value: "orgs" },
         { title: "📋  Policies", value: "policies" },
         { title: "📜  Activities", value: "activities" },
         { title: "🏢  Organization Info", value: "org" },
@@ -66,6 +67,9 @@ async function mainMenu(): Promise<void> {
         break;
       case "users":
         await usersMenu();
+        break;
+      case "orgs":
+        await organizationsMenu();
         break;
       case "policies":
         await policiesMenu();
@@ -544,6 +548,291 @@ async function getUserDetails(): Promise<void> {
     console.log("\n" + JSON.stringify(user, null, 2) + "\n");
   } catch (error: any) {
     console.error("\nError:", error.message);
+  }
+
+  await pause();
+}
+
+// ============================================================================
+// ORGANIZATIONS (SUB-ORGANIZATIONS)
+// ============================================================================
+
+async function organizationsMenu(): Promise<void> {
+  while (true) {
+    const { action } = await prompts({
+      type: "select",
+      name: "action",
+      message: "Organizations:",
+      choices: [
+        { title: "➕  Create sub-organization", value: "create" },
+        { title: "📋  List sub-organizations", value: "list" },
+        { title: "←   Back to main menu", value: "back" },
+      ],
+    });
+
+    if (!action || action === "back") return;
+
+    switch (action) {
+      case "create":
+        await createSubOrganization();
+        break;
+      case "list":
+        await listSubOrganizations();
+        break;
+    }
+  }
+}
+
+async function listSubOrganizations(): Promise<void> {
+  const turnkey = getTurnkeyClient();
+  const organizationId = getOrganizationId();
+
+  try {
+    // Note: This lists sub-organizations under the current organization
+    const { organizationConfigs } = await turnkey
+      .apiClient()
+      .getOrganizationConfigs({ organizationId });
+
+    console.log();
+    console.log("─".repeat(60));
+    console.log("  Current Organization");
+    console.log("─".repeat(60));
+    console.log(`  ID: ${organizationId}`);
+    console.log();
+    console.log("  Note: To list sub-organizations, use the Turnkey dashboard");
+    console.log("  or query with a parent organization's credentials.");
+    console.log("─".repeat(60));
+    console.log();
+  } catch (error: any) {
+    console.error("\nError:", error.message);
+  }
+
+  await pause();
+}
+
+async function createSubOrganization(): Promise<void> {
+  const turnkey = getTurnkeyClient();
+
+  console.log();
+  console.log("─".repeat(60));
+  console.log("  Create Sub-Organization");
+  console.log("─".repeat(60));
+  console.log();
+  console.log("  This will create a new sub-organization under your");
+  console.log("  current organization with a root user.");
+  console.log();
+
+  // Get sub-organization name
+  const { subOrgName } = await prompts({
+    type: "text",
+    name: "subOrgName",
+    message: "Sub-organization name:",
+    validate: (v) => (v.length > 0 ? true : "Name is required"),
+  });
+
+  if (!subOrgName) return;
+
+  // Get root user details
+  console.log("\n  Root User Configuration:");
+
+  const { userName } = await prompts({
+    type: "text",
+    name: "userName",
+    message: "Root user name:",
+    validate: (v) => (v.length > 0 ? true : "Name is required"),
+  });
+
+  if (!userName) return;
+
+  const { userEmail } = await prompts({
+    type: "text",
+    name: "userEmail",
+    message: "Root user email (optional):",
+  });
+
+  // Ask about authentication method
+  const { authMethod } = await prompts({
+    type: "select",
+    name: "authMethod",
+    message: "Root user authentication:",
+    choices: [
+      { title: "API Key (generate new)", value: "apikey" },
+      { title: "Passkey/WebAuthn (provide attestation)", value: "passkey" },
+      { title: "None (add later)", value: "none" },
+    ],
+  });
+
+  if (!authMethod) return;
+
+  let apiKeys: any[] = [];
+  let authenticators: any[] = [];
+
+  if (authMethod === "apikey") {
+    const { apiKeyName } = await prompts({
+      type: "text",
+      name: "apiKeyName",
+      message: "API key name:",
+      initial: `${subOrgName}-root-api-key`,
+    });
+
+    // Generate a new API key pair using Web Crypto
+    const keyPair = await crypto.subtle.generateKey(
+      {
+        name: "ECDSA",
+        namedCurve: "P-256",
+      },
+      true,
+      ["sign", "verify"]
+    );
+
+    const publicKeyBuffer = await crypto.subtle.exportKey(
+      "raw",
+      keyPair.publicKey
+    );
+    const publicKeyHex = Buffer.from(publicKeyBuffer).toString("hex");
+
+    const privateKeyBuffer = await crypto.subtle.exportKey(
+      "pkcs8",
+      keyPair.privateKey
+    );
+    const privateKeyHex = Buffer.from(privateKeyBuffer).toString("hex");
+
+    apiKeys = [
+      {
+        apiKeyName: apiKeyName || `${subOrgName}-root-api-key`,
+        publicKey: publicKeyHex,
+      },
+    ];
+
+    console.log();
+    console.log("  ⚠️  SAVE THESE CREDENTIALS - they won't be shown again!");
+    console.log("─".repeat(60));
+    console.log(`  API Key Name:    ${apiKeyName}`);
+    console.log(`  Public Key:      ${publicKeyHex.slice(0, 40)}...`);
+    console.log(`  Private Key:     ${privateKeyHex.slice(0, 40)}...`);
+    console.log("─".repeat(60));
+    console.log();
+
+    // Offer to save to file
+    const { saveKeys } = await prompts({
+      type: "confirm",
+      name: "saveKeys",
+      message: "Save API keys to file?",
+      initial: true,
+    });
+
+    if (saveKeys) {
+      const fs = await import("fs");
+      const path = await import("path");
+      const filename = `${subOrgName.replace(/\s+/g, "-").toLowerCase()}-api-keys.json`;
+      const filepath = path.resolve(process.cwd(), filename);
+
+      fs.writeFileSync(
+        filepath,
+        JSON.stringify(
+          {
+            subOrganizationName: subOrgName,
+            apiKeyName: apiKeyName,
+            publicKey: publicKeyHex,
+            privateKey: privateKeyHex,
+            createdAt: new Date().toISOString(),
+          },
+          null,
+          2
+        )
+      );
+      console.log(`  ✓ Saved to ${filename}`);
+    }
+  }
+
+  // Ask about creating a wallet
+  const { createWallet } = await prompts({
+    type: "confirm",
+    name: "createWallet",
+    message: "Create a wallet for this sub-organization?",
+    initial: false,
+  });
+
+  let wallet: any = undefined;
+  if (createWallet) {
+    const { walletName } = await prompts({
+      type: "text",
+      name: "walletName",
+      message: "Wallet name:",
+      initial: `${subOrgName}-wallet`,
+    });
+
+    wallet = {
+      walletName: walletName || `${subOrgName}-wallet`,
+      accounts: [
+        {
+          curve: "CURVE_SECP256K1",
+          pathFormat: "PATH_FORMAT_BIP32",
+          path: "m/44'/60'/0'/0/0",
+          addressFormat: "ADDRESS_FORMAT_ETHEREUM",
+        },
+      ],
+    };
+  }
+
+  // Confirm creation
+  console.log();
+  console.log("─".repeat(60));
+  console.log("  Summary");
+  console.log("─".repeat(60));
+  console.log(`  Sub-org name:  ${subOrgName}`);
+  console.log(`  Root user:     ${userName} ${userEmail ? `(${userEmail})` : ""}`);
+  console.log(`  Auth method:   ${authMethod}`);
+  console.log(`  Create wallet: ${createWallet ? "Yes" : "No"}`);
+  console.log("─".repeat(60));
+
+  const { confirm } = await prompts({
+    type: "confirm",
+    name: "confirm",
+    message: "Create this sub-organization?",
+    initial: true,
+  });
+
+  if (!confirm) {
+    console.log("\nCancelled.");
+    await pause();
+    return;
+  }
+
+  try {
+    const result = await turnkey.apiClient().createSubOrganization({
+      subOrganizationName: subOrgName,
+      rootUsers: [
+        {
+          userName,
+          userEmail: userEmail || undefined,
+          apiKeys,
+          authenticators,
+          oauthProviders: [],
+        },
+      ],
+      rootQuorumThreshold: 1,
+      wallet,
+    });
+
+    console.log();
+    console.log("═".repeat(60));
+    console.log("  ✓ Sub-organization created successfully!");
+    console.log("═".repeat(60));
+    console.log();
+    console.log(`  Sub-org ID:    ${result.subOrganizationId}`);
+    if (result.rootUserIds?.length) {
+      console.log(`  Root user ID:  ${result.rootUserIds[0]}`);
+    }
+    if (result.wallet) {
+      console.log(`  Wallet ID:     ${result.wallet.walletId}`);
+      if (result.wallet.addresses?.length) {
+        console.log(`  Address:       ${result.wallet.addresses[0]}`);
+      }
+    }
+    console.log();
+  } catch (error: any) {
+    console.error("\nError creating sub-organization:", error.message);
   }
 
   await pause();

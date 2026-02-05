@@ -4,6 +4,8 @@
   "version": "0.1.0",
   "description": "Disaster recovery examples using Turnkey - Direct Wallet Import and Encryption Key Escrow",
   "scripts": {
+    "start": "tsx src/interactive.ts",
+    "generate-test-wallet": "tsx src/utils/generate-test-wallet.ts",
     "path1:import-wallet": "tsx src/path1-direct-import/import-wallet.ts",
     "path1:import-key": "tsx src/path1-direct-import/import-private-key.ts",
     "path1:sweep-funds": "tsx src/path1-direct-import/sweep-funds.ts",

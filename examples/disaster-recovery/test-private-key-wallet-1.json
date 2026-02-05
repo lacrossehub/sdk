@@ -1,0 +1,9 @@
+{
+  "warning": "TEST WALLET ONLY - DO NOT USE FOR REAL FUNDS",
+  "createdAt": "2026-02-05T17:26:54.033Z",
+  "privateKey": {
+    "privateKey": "0x90893eb726c50c9730aa69c542448bfc8ad5b6fb5a2f98164e65d60648dcdea2",
+    "address": "0xd83Cf5c1589B334539c276c9546CE141FCaC7592",
+    "curve": "secp256k1"
+  }
+}

@@ -1,0 +1,10 @@
+{
+  "warning": "TEST WALLET ONLY - DO NOT USE FOR REAL FUNDS",
+  "createdAt": "2026-02-05T17:29:44.343Z",
+  "mnemonic": {
+    "mnemonic": "aware puzzle lake couch glide subway bid pave surface zebra garment course",
+    "wordCount": 12,
+    "address": "0x7B34C2B7d732B1d16D4A6d60E776C92F842aBa42",
+    "derivationPath": "m/44'/60'/0'/0/0"
+  }
+}
