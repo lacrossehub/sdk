@@ -2,13 +2,18 @@
 /**
  * Encryption Key Escrow Interactive CLI
  *
- * Demonstrates the encryption key escrow pattern for high-performance,
- * multi-wallet signing scenarios. This pattern enables:
+ * Demonstrates how to use Turnkey as a secure key storage and retrieval
+ * service rather than relying on Turnkey for signing operations directly.
  *
- * - Persistent encrypted wallet storage (client-side)
- * - Per-session decryption key retrieval from Turnkey
- * - Zero-latency local signing during active sessions
- * - Secure key separation (encrypted bundles + Turnkey-held decryption key)
+ * The Pattern (2-of-2 Security Model):
+ * - Encrypted data: Stored in YOUR infrastructure (Turnkey never sees it)
+ * - Encryption key: Stored in Turnkey's secure enclave
+ * - Both components required to decrypt
+ *
+ * Use Cases:
+ * - High-performance multi-wallet signing (export key once, sign locally)
+ * - User-controlled backup & recovery (like World App's Turnkey integration)
+ * - Distributed trust models (key material separated from encrypted data)
  *
  * Usage: pnpm start
  */
@@ -112,8 +117,13 @@ function getTurnkeyClient(): Turnkey {
 async function mainMenu(): Promise<void> {
   console.clear();
   console.log("╔════════════════════════════════════════════════════════════╗");
-  console.log("║         ENCRYPTION KEY ESCROW DEMO                         ║");
+  console.log("║         ENCRYPTION KEY ESCROW                              ║");
+  console.log("║   Turnkey as Secure Key Storage & Retrieval Service        ║");
   console.log("╚════════════════════════════════════════════════════════════╝");
+  console.log();
+  console.log("2-of-2 Security Model:");
+  console.log("  • Encrypted data → Your infrastructure (Turnkey never sees it)");
+  console.log("  • Encryption key → Turnkey secure enclave");
   console.log();
 
   while (true) {
@@ -127,39 +137,39 @@ async function mainMenu(): Promise<void> {
       message: `Session: ${sessionStatus} | What would you like to do?`,
       choices: [
         {
-          title: "─── Initial Setup ───",
+          title: "─── Setup (One-Time) ───",
           value: "separator1",
           disabled: true,
         },
         {
-          title: "Create Encryption Key",
-          description: "Create a P-256 encryption keypair in Turnkey",
+          title: "Create Encryption Key in Turnkey",
+          description: "P-256 keypair stored in Turnkey's secure enclave",
           value: "create-key",
         },
         {
-          title: "Generate & Encrypt Wallets",
-          description: "Create test wallets and encrypt to escrow key",
+          title: "Generate & Encrypt Test Data",
+          description: "Create wallets/credentials and encrypt locally",
           value: "generate-wallets",
         },
         {
-          title: "─── Per-Session Flow ───",
+          title: "─── On-Demand Access ───",
           value: "separator2",
           disabled: true,
         },
         {
-          title: "Start Session",
-          description: "Export decryption key and decrypt wallet bundles",
+          title: "Export Key & Decrypt Data",
+          description: "Retrieve decryption key from Turnkey, decrypt locally",
           value: "start-session",
         },
         {
-          title: "Sign Message (Demo)",
-          description: "Sign a message with any decrypted wallet",
+          title: "Use Decrypted Data (Demo)",
+          description: "Sign a message with decrypted wallet",
           value: "sign-demo",
           disabled: !activeSession.decryptionKey,
         },
         {
-          title: "End Session",
-          description: "Burn decryption key and clear decrypted wallets",
+          title: "Clear Sensitive Data",
+          description: "Wipe decryption key and decrypted data from memory",
           value: "end-session",
           disabled: !activeSession.decryptionKey,
         },
@@ -170,7 +180,7 @@ async function mainMenu(): Promise<void> {
         },
         {
           title: "View Encrypted Store",
-          description: "Inspect the encrypted wallet bundles",
+          description: "Inspect encrypted bundles (Turnkey never sees this)",
           value: "view-store",
         },
         { title: "Exit", value: "exit" },
@@ -222,8 +232,13 @@ async function mainMenu(): Promise<void> {
     });
     console.clear();
     console.log("╔════════════════════════════════════════════════════════════╗");
-    console.log("║         ENCRYPTION KEY ESCROW DEMO                         ║");
+    console.log("║         ENCRYPTION KEY ESCROW                              ║");
+    console.log("║   Turnkey as Secure Key Storage & Retrieval Service        ║");
     console.log("╚════════════════════════════════════════════════════════════╝");
+    console.log();
+    console.log("2-of-2 Security Model:");
+    console.log("  • Encrypted data → Your infrastructure (Turnkey never sees it)");
+    console.log("  • Encryption key → Turnkey secure enclave");
     console.log();
   }
 }
@@ -234,12 +249,15 @@ async function mainMenu(): Promise<void> {
 
 async function createEncryptionKey(): Promise<void> {
   console.log("─".repeat(60));
-  console.log("CREATE ENCRYPTION KEY");
+  console.log("CREATE ENCRYPTION KEY IN TURNKEY");
   console.log("─".repeat(60));
   console.log();
-  console.log("This creates a P-256 keypair in Turnkey that will be used to");
-  console.log("encrypt wallet bundles. The private key stays in Turnkey's");
-  console.log("secure enclave and is only exported per-session.");
+  console.log("This creates a P-256 keypair in Turnkey's secure enclave.");
+  console.log();
+  console.log("How it works:");
+  console.log("  • Public key: You use this to encrypt data locally");
+  console.log("  • Private key: Stays in Turnkey, exported only on-demand");
+  console.log("  • Turnkey never sees your encrypted data");
   console.log();
 
   const existingKeyId = process.env.ENCRYPTION_KEY_ID;
@@ -309,8 +327,14 @@ async function createEncryptionKey(): Promise<void> {
 
 async function generateAndEncryptWallets(): Promise<void> {
   console.log("─".repeat(60));
-  console.log("GENERATE & ENCRYPT WALLETS");
+  console.log("GENERATE & ENCRYPT TEST DATA");
   console.log("─".repeat(60));
+  console.log();
+  console.log("This demonstrates encrypting sensitive data with Turnkey's public key.");
+  console.log("In production, this could be: wallets, recovery bundles, credentials, etc.");
+  console.log();
+  console.log("Key point: Turnkey NEVER sees the plaintext or encrypted data.");
+  console.log("You store the encrypted bundles in YOUR infrastructure.");
   console.log();
 
   const encryptionKeyId = process.env.ENCRYPTION_KEY_ID;
@@ -453,11 +477,11 @@ async function generateAndEncryptWallets(): Promise<void> {
 
   console.log();
   console.log("═".repeat(60));
-  console.log("SUCCESS: Wallets encrypted and stored!");
+  console.log("SUCCESS: Data encrypted and stored locally!");
   console.log("═".repeat(60));
   console.log();
-  console.log("Wallets created:", bundles.length);
-  console.log("Store saved to: encrypted-wallet-store.json");
+  console.log("Bundles created:", bundles.length);
+  console.log("Store saved to:  encrypted-wallet-store.json");
   console.log();
   console.log("Sample addresses:");
   bundles.slice(0, 3).forEach((b, i) => {
@@ -467,9 +491,14 @@ async function generateAndEncryptWallets(): Promise<void> {
     console.log(`  ... and ${bundles.length - 3} more`);
   }
   console.log();
-  console.log("The encrypted bundles can now be stored in your infrastructure");
-  console.log("(localStorage, database, S3, etc.). The decryption key stays");
-  console.log("safely in Turnkey until you start a session.");
+  console.log("─".repeat(60));
+  console.log("Security Model Now Active:");
+  console.log("─".repeat(60));
+  console.log("  ✓ Encrypted bundles: YOUR infrastructure (this file)");
+  console.log("  ✓ Decryption key:    Turnkey secure enclave");
+  console.log("  ✓ Turnkey never saw: The plaintext data");
+  console.log();
+  console.log("To decrypt, you must authenticate to Turnkey and export the key.");
 }
 
 // ============================================================================
@@ -478,12 +507,19 @@ async function generateAndEncryptWallets(): Promise<void> {
 
 async function startSession(): Promise<void> {
   console.log("─".repeat(60));
-  console.log("START SESSION");
+  console.log("EXPORT KEY & DECRYPT DATA");
   console.log("─".repeat(60));
+  console.log();
+  console.log("This retrieves the decryption key from Turnkey and decrypts");
+  console.log("your locally-stored encrypted bundles.");
+  console.log();
+  console.log("After this step, you can use the decrypted data locally");
+  console.log("(sign transactions, access credentials, etc.) with NO further");
+  console.log("Turnkey API calls required.");
   console.log();
 
   if (activeSession.decryptionKey) {
-    console.log("Session already active. End it first to start a new one.");
+    console.log("Data already decrypted. Clear it first to start fresh.");
     return;
   }
 
@@ -584,16 +620,20 @@ async function startSession(): Promise<void> {
 
   console.log();
   console.log("═".repeat(60));
-  console.log("SESSION STARTED");
+  console.log("SUCCESS: Data decrypted and ready for use!");
   console.log("═".repeat(60));
   console.log();
-  console.log("Performance metrics:");
-  console.log(`  Key export:       ${exportTime}ms (single Turnkey request)`);
-  console.log(`  Bundle decryption: ${decryptTime}ms (${store.bundles.length} wallets)`);
-  console.log(`  Total:            ${exportTime + decryptTime}ms`);
+  console.log("Performance:");
+  console.log(`  Turnkey API call:  ${exportTime}ms (single request to export key)`);
+  console.log(`  Local decryption:  ${decryptTime}ms (${store.bundles.length} bundles)`);
+  console.log(`  Total:             ${exportTime + decryptTime}ms`);
   console.log();
-  console.log(`${decryptedWallets.length} wallets ready for signing.`);
-  console.log("All signing operations are now LOCAL (zero network latency).");
+  console.log(`${decryptedWallets.length} items now available in memory.`);
+  console.log();
+  console.log("From this point forward:");
+  console.log("  • All operations are LOCAL (no Turnkey API calls)");
+  console.log("  • Sign transactions, access data, etc. with zero latency");
+  console.log("  • When done, clear sensitive data from memory");
 }
 
 // ============================================================================
@@ -602,12 +642,15 @@ async function startSession(): Promise<void> {
 
 async function signDemo(): Promise<void> {
   console.log("─".repeat(60));
-  console.log("SIGN MESSAGE (DEMO)");
+  console.log("USE DECRYPTED DATA (DEMO)");
   console.log("─".repeat(60));
+  console.log();
+  console.log("This demonstrates using the decrypted wallet data to sign");
+  console.log("a message. Note: NO Turnkey API calls are made here.");
   console.log();
 
   if (!activeSession.decryptionKey || activeSession.decryptedWallets.length === 0) {
-    console.log("No active session. Start a session first.");
+    console.log("No decrypted data available. Export key & decrypt first.");
     return;
   }
 
@@ -653,10 +696,14 @@ async function signDemo(): Promise<void> {
   console.log("Address:   ", wallet.address);
   console.log("Message:   ", message);
   console.log("Signature: ", signature.slice(0, 40) + "...");
-  console.log("Time:      ", `${signTime}ms (local signing)`);
+  console.log("Time:      ", `${signTime}ms`);
   console.log();
-  console.log("Note: This signature was created entirely client-side.");
-  console.log("No network requests were made during signing.");
+  console.log("─".repeat(60));
+  console.log("Key Insight:");
+  console.log("─".repeat(60));
+  console.log("  This signature was created entirely LOCAL.");
+  console.log("  Zero Turnkey API calls. Zero network latency.");
+  console.log("  Turnkey was only used to retrieve the decryption key.");
 }
 
 // ============================================================================
@@ -665,12 +712,12 @@ async function signDemo(): Promise<void> {
 
 function endSession(): void {
   console.log("─".repeat(60));
-  console.log("END SESSION");
+  console.log("CLEAR SENSITIVE DATA");
   console.log("─".repeat(60));
   console.log();
 
   if (!activeSession.decryptionKey) {
-    console.log("No active session to end.");
+    console.log("No decrypted data to clear.");
     return;
   }
 
@@ -703,18 +750,21 @@ function endSession(): void {
 
   console.log();
   console.log("═".repeat(60));
-  console.log("SESSION ENDED");
+  console.log("SENSITIVE DATA CLEARED");
   console.log("═".repeat(60));
   console.log();
-  console.log("Session duration:", `${sessionDuration} seconds`);
-  console.log("Wallets cleared: ", walletCount);
+  console.log("Duration:        ", `${sessionDuration} seconds`);
+  console.log("Items cleared:   ", walletCount);
   console.log();
-  console.log("Security state:");
-  console.log("  ✓ Decryption key burned (cleared from memory)");
-  console.log("  ✓ Decrypted wallets wiped");
-  console.log("  ✓ Encrypted bundles remain in store (safe at rest)");
+  console.log("─".repeat(60));
+  console.log("Security Model Restored:");
+  console.log("─".repeat(60));
+  console.log("  ✓ Decryption key:   Cleared from memory");
+  console.log("  ✓ Decrypted data:   Cleared from memory");
+  console.log("  ✓ Encrypted store:  Still in YOUR infrastructure (safe)");
+  console.log("  ✓ Turnkey enclave:  Still holds the encryption key");
   console.log();
-  console.log("To sign again, you must start a new session (re-export key).");
+  console.log("To access data again, authenticate to Turnkey and export the key.");
 }
 
 // ============================================================================
@@ -723,30 +773,34 @@ function endSession(): void {
 
 async function viewEncryptedStore(): Promise<void> {
   console.log("─".repeat(60));
-  console.log("ENCRYPTED WALLET STORE");
+  console.log("VIEW ENCRYPTED STORE");
   console.log("─".repeat(60));
+  console.log();
+  console.log("This shows the encrypted data stored in YOUR infrastructure.");
+  console.log("Turnkey has NEVER seen this data - only the encryption key.");
   console.log();
 
   const storePath = path.resolve(process.cwd(), "encrypted-wallet-store.json");
 
   if (!fs.existsSync(storePath)) {
-    console.log("No encrypted wallet store found.");
-    console.log("Run 'Generate & Encrypt Wallets' to create one.");
+    console.log("No encrypted store found.");
+    console.log("Run 'Generate & Encrypt Test Data' to create one.");
     return;
   }
 
   const store: WalletStore = JSON.parse(fs.readFileSync(storePath, "utf-8"));
 
-  console.log("Store details:");
+  console.log("─".repeat(60));
+  console.log("Store Details:");
+  console.log("─".repeat(60));
+  console.log("  Location:       ", "encrypted-wallet-store.json (YOUR infrastructure)");
   console.log("  Version:        ", store.version);
   console.log("  Encryption Key: ", store.encryptionKeyId.slice(0, 30) + "...");
-  console.log("  Organization:   ", store.organizationId);
-  console.log("  Created:        ", store.createdAt);
-  console.log("  Updated:        ", store.updatedAt);
   console.log("  Bundle count:   ", store.bundles.length);
+  console.log("  Created:        ", store.createdAt);
   console.log();
 
-  console.log("Encrypted bundles (addresses only - keys are encrypted):");
+  console.log("Encrypted bundles (metadata only - contents encrypted):");
   store.bundles.slice(0, 10).forEach((bundle, i) => {
     console.log(`  ${i + 1}. ${bundle.name}: ${bundle.address}`);
   });
@@ -755,9 +809,12 @@ async function viewEncryptedStore(): Promise<void> {
   }
   console.log();
 
-  console.log("Security note:");
-  console.log("  The private keys in this store are encrypted with P-256 ECIES.");
-  console.log("  Without the decryption key from Turnkey, they cannot be used.");
+  console.log("─".repeat(60));
+  console.log("Security Status:");
+  console.log("─".repeat(60));
+  console.log("  ✓ Data encrypted with P-256 ECIES");
+  console.log("  ✓ Decryption key held in Turnkey enclave");
+  console.log("  ✓ Without Turnkey authentication, this data is useless");
 }
 
 // ============================================================================
