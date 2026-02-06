@@ -109,21 +109,21 @@ cp .env.local.example .env.local
 pnpm start
 ```
 
-## Interactive CLI
+## Interactive CLI Menu
 
-The CLI demonstrates the complete escrow pattern:
+The CLI provides a complete walkthrough of the escrow pattern:
 
-**Initial Setup:**
-- `Create Encryption Key` - Generate a P-256 keypair in Turnkey
-- `Generate & Encrypt Wallets` - Create test wallets and encrypt to escrow key
+### Initial Setup
+1. **Create Encryption Key** - Generate a P-256 keypair in Turnkey
+2. **Generate & Encrypt Wallets** - Create test wallets and encrypt them
 
-**Per-Session Flow:**
-- `Start Session` - Export decryption key and decrypt wallet bundles
-- `Sign Message (Demo)` - Sign with any decrypted wallet (local, instant)
-- `End Session` - Clear decryption key and decrypted wallets from memory
+### Per-Session Flow
+3. **Start Session** - Export decryption key and decrypt wallet bundles
+4. **Sign Message (Demo)** - Sign with any decrypted wallet (local, instant)
+5. **End Session** - Burn decryption key and clear memory
 
-**Utilities:**
-- `View Encrypted Store` - Inspect the encrypted wallet bundles
+### Utilities
+- **View Encrypted Store** - Inspect the encrypted wallet bundles
 
 ## Environment Variables
 
