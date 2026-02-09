@@ -294,14 +294,14 @@ async function createEncryptionKey(): Promise<void> {
     privateKeys: [
       {
         privateKeyName: keyName,
-        curve: "CURVE_P256",
+        curve: "CURVE_P256" as any,
         addressFormats: [],
         privateKeyTags: ["escrow", "encryption"],
       },
     ],
   });
 
-  const privateKeyId = privateKeys[0].privateKeyId;
+  const privateKeyId = privateKeys[0].privateKeyId!;
 
   // Fetch the public key
   const { privateKey } = await turnkeyClient.apiClient().getPrivateKey({
@@ -395,7 +395,7 @@ async function generateAndEncryptWallets(): Promise<void> {
     // Generate HD wallet
     const mnemonic = generateMnemonic(english, 256);
     const hdKey = HDKey.fromMasterSeed(
-      Buffer.from(mnemonicToAccount(mnemonic).getHdKey().privateKey!)
+      new Uint8Array(mnemonicToAccount(mnemonic).getHdKey().privateKey!)
     );
 
     console.log("HD wallet generated. Deriving addresses...");
@@ -578,10 +578,7 @@ async function startSession(): Promise<void> {
     returnMnemonic: false,
   });
 
-  const decryptionKey =
-    typeof decryptedKeyBundle === "string"
-      ? decryptedKeyBundle
-      : decryptedKeyBundle.privateKey;
+  const decryptionKey = decryptedKeyBundle;
 
   console.log("Step 4: Decrypt wallet bundles...");
   const startDecrypt = Date.now();

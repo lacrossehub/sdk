@@ -19,7 +19,7 @@ export async function encryptWithPublicKey(
   // Import the public key
   const publicKey = await crypto.subtle.importKey(
     "raw",
-    publicKeyBytes,
+    publicKeyBytes as BufferSource,
     {
       name: "ECDH",
       namedCurve: "P-256",
@@ -103,7 +103,7 @@ export async function decryptWithPrivateKey(
 
   const privateKey = await crypto.subtle.importKey(
     "pkcs8",
-    createPkcs8FromRaw(privateKeyBytes),
+    createPkcs8FromRaw(privateKeyBytes) as BufferSource,
     {
       name: "ECDH",
       namedCurve: "P-256",
