@@ -136,5 +136,8 @@ turnkey.json
 # turborepo
 .turbo
 
+# Encrypted wallet store (contains sensitive encrypted data)
+encrypted-wallet-store.json
+
 # Local utility tools (not for public repo)
 examples/keymaker/
