@@ -50,34 +50,35 @@ dotenv.config({ path: path.resolve(process.cwd(), ".env.local") });
 // Types
 // ============================================================================
 
-interface EncryptedWalletBundle {
+interface EncryptedBundle {
   id: string;
   name: string;
   encryptedData: string;
-  address: string;
+  address?: string;
   createdAt: string;
 }
 
-interface WalletStore {
+interface EncryptedStore {
   version: string;
   encryptionKeyId: string;
   organizationId: string;
-  bundles: EncryptedWalletBundle[];
+  bundles: EncryptedBundle[];
   createdAt: string;
   updatedAt: string;
 }
 
-interface DecryptedWallet {
+interface DecryptedEntry {
   id: string;
   name: string;
-  privateKey: string;
-  address: string;
+  privateKey?: string;
+  address?: string;
+  data?: string;
 }
 
 // In-memory session state
 let activeSession: {
   decryptionKey: string | null;
-  decryptedWallets: DecryptedWallet[];
+  decryptedWallets: DecryptedEntry[];
   startedAt: Date | null;
 } = {
   decryptionKey: null,
@@ -128,7 +129,7 @@ async function mainMenu(): Promise<void> {
 
   while (true) {
     const sessionStatus = activeSession.decryptionKey
-      ? `🟢 Active (${activeSession.decryptedWallets.length} wallets)`
+      ? `🟢 Active (${activeSession.decryptedWallets.length} entries)`
       : "⚪ No active session";
 
     const { action } = await prompts({
@@ -150,6 +151,11 @@ async function mainMenu(): Promise<void> {
           title: "Generate & Encrypt Test Data",
           description: "Create wallets/credentials and encrypt locally",
           value: "generate-wallets",
+        },
+        {
+          title: "Encrypt Custom Data",
+          description: "Encrypt your own data with the escrow key",
+          value: "encrypt-custom",
         },
         {
           title: "─── On-Demand Access ───",
@@ -205,6 +211,9 @@ async function mainMenu(): Promise<void> {
           break;
         case "generate-wallets":
           await generateAndEncryptWallets();
+          break;
+        case "encrypt-custom":
+          await encryptCustomData();
           break;
         case "start-session":
           await startSession();
@@ -389,7 +398,7 @@ async function generateAndEncryptWallets(): Promise<void> {
   console.log();
   console.log(`Generating ${walletCount} wallets...`);
 
-  const bundles: EncryptedWalletBundle[] = [];
+  const bundles: EncryptedBundle[] = [];
 
   if (walletType === "hd") {
     // Generate HD wallet
@@ -463,7 +472,7 @@ async function generateAndEncryptWallets(): Promise<void> {
   }
 
   // Save to store
-  const store: WalletStore = {
+  const store: EncryptedStore = {
     version: "1.0",
     encryptionKeyId,
     organizationId: organizationId!,
@@ -499,6 +508,98 @@ async function generateAndEncryptWallets(): Promise<void> {
   console.log("  ✓ Turnkey never saw: The plaintext data");
   console.log();
   console.log("To decrypt, you must authenticate to Turnkey and export the key.");
+}
+
+// ============================================================================
+// Encrypt Custom Data
+// ============================================================================
+
+async function encryptCustomData(): Promise<void> {
+  console.log("─".repeat(60));
+  console.log("ENCRYPT CUSTOM DATA");
+  console.log("─".repeat(60));
+  console.log();
+  console.log("Encrypt any data you choose with the Turnkey escrow key.");
+  console.log("The encrypted bundle is stored locally — Turnkey never sees it.");
+  console.log();
+
+  const encryptionKeyId = process.env.ENCRYPTION_KEY_ID;
+  const organizationId = process.env.ORGANIZATION_ID;
+
+  if (!encryptionKeyId) {
+    throw new Error(
+      "Missing ENCRYPTION_KEY_ID. Run 'Create Encryption Key' first."
+    );
+  }
+
+  const { name } = await prompts({
+    type: "text",
+    name: "name",
+    message: "Label for this entry:",
+    initial: `Custom-${Date.now()}`,
+  });
+
+  if (!name) return;
+
+  const { data } = await prompts({
+    type: "text",
+    name: "data",
+    message: "Data to encrypt:",
+  });
+
+  if (!data) return;
+
+  const turnkeyClient = getTurnkeyClient();
+
+  console.log();
+  console.log("Fetching encryption public key from Turnkey...");
+  const { privateKey: encryptionKey } = await turnkeyClient
+    .apiClient()
+    .getPrivateKey({
+      privateKeyId: encryptionKeyId,
+    });
+
+  const publicKey = encryptionKey.publicKey;
+
+  console.log("Encrypting data...");
+  const payload = JSON.stringify({ type: "custom", data });
+  const encryptedData = await encryptWithPublicKey(publicKey, payload);
+
+  // Load or create store
+  const storePath = path.resolve(process.cwd(), "encrypted-wallet-store.json");
+  let store: EncryptedStore;
+
+  if (fs.existsSync(storePath)) {
+    store = JSON.parse(fs.readFileSync(storePath, "utf-8"));
+  } else {
+    store = {
+      version: "1.0",
+      encryptionKeyId,
+      organizationId: organizationId!,
+      bundles: [],
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+    };
+  }
+
+  store.bundles.push({
+    id: `custom-${Date.now()}`,
+    name,
+    encryptedData,
+    createdAt: new Date().toISOString(),
+  });
+  store.updatedAt = new Date().toISOString();
+
+  fs.writeFileSync(storePath, JSON.stringify(store, null, 2));
+
+  console.log();
+  console.log("═".repeat(60));
+  console.log("SUCCESS: Data encrypted and stored locally!");
+  console.log("═".repeat(60));
+  console.log();
+  console.log("Label:     ", name);
+  console.log("Store:      encrypted-wallet-store.json");
+  console.log("Total bundles:", store.bundles.length);
 }
 
 // ============================================================================
@@ -540,8 +641,8 @@ async function startSession(): Promise<void> {
     );
   }
 
-  const store: WalletStore = JSON.parse(fs.readFileSync(storePath, "utf-8"));
-  console.log(`Found ${store.bundles.length} encrypted wallet bundles.`);
+  const store: EncryptedStore = JSON.parse(fs.readFileSync(storePath, "utf-8"));
+  console.log(`Found ${store.bundles.length} encrypted bundles.`);
   console.log();
 
   const { confirm } = await prompts({
@@ -580,10 +681,10 @@ async function startSession(): Promise<void> {
 
   const decryptionKey = decryptedKeyBundle;
 
-  console.log("Step 4: Decrypt wallet bundles...");
+  console.log("Step 4: Decrypt bundles...");
   const startDecrypt = Date.now();
 
-  const decryptedWallets: DecryptedWallet[] = [];
+  const decryptedWallets: DecryptedEntry[] = [];
 
   for (let i = 0; i < store.bundles.length; i++) {
     const bundle = store.bundles[i];
@@ -591,17 +692,25 @@ async function startSession(): Promise<void> {
       decryptionKey,
       bundle.encryptedData
     );
-    const walletData = JSON.parse(decryptedJson);
+    const parsed = JSON.parse(decryptedJson);
 
-    decryptedWallets.push({
-      id: bundle.id,
-      name: bundle.name,
-      privateKey: walletData.privateKey,
-      address: bundle.address,
-    });
+    if (parsed.type === "custom") {
+      decryptedWallets.push({
+        id: bundle.id,
+        name: bundle.name,
+        data: parsed.data,
+      });
+    } else {
+      decryptedWallets.push({
+        id: bundle.id,
+        name: bundle.name,
+        privateKey: parsed.privateKey,
+        address: bundle.address,
+      });
+    }
 
     process.stdout.write(
-      `\r  Decrypted ${i + 1}/${store.bundles.length} wallets`
+      `\r  Decrypted ${i + 1}/${store.bundles.length} bundles`
     );
   }
   console.log();
@@ -651,16 +760,32 @@ async function signDemo(): Promise<void> {
     return;
   }
 
-  console.log(`Available wallets: ${activeSession.decryptedWallets.length}`);
+  const wallets = activeSession.decryptedWallets.filter((e) => e.privateKey);
+  const customEntries = activeSession.decryptedWallets.filter((e) => e.data);
+
+  if (customEntries.length > 0) {
+    console.log(`Custom data entries: ${customEntries.length}`);
+    customEntries.forEach((e, i) => {
+      console.log(`  ${i + 1}. ${e.name}: ${e.data}`);
+    });
+    console.log();
+  }
+
+  if (wallets.length === 0) {
+    console.log("No wallet entries available to sign with.");
+    return;
+  }
+
+  console.log(`Available wallets: ${wallets.length}`);
   console.log();
 
   const { walletIndex } = await prompts({
     type: "number",
     name: "walletIndex",
-    message: `Select wallet index (0-${activeSession.decryptedWallets.length - 1}):`,
+    message: `Select wallet index (0-${wallets.length - 1}):`,
     initial: 0,
     min: 0,
-    max: activeSession.decryptedWallets.length - 1,
+    max: wallets.length - 1,
   });
 
   if (walletIndex === undefined) return;
@@ -674,8 +799,8 @@ async function signDemo(): Promise<void> {
 
   if (!message) return;
 
-  const wallet = activeSession.decryptedWallets[walletIndex];
-  const account = privateKeyToAccount(wallet.privateKey as `0x${string}`);
+  const wallet = wallets[walletIndex];
+  const account = privateKeyToAccount(wallet.privateKey! as `0x${string}`);
 
   console.log();
   console.log("Signing message locally (zero network latency)...");
@@ -730,11 +855,16 @@ function endSession(): void {
     secureWipe(keyBytes);
   }
 
-  // Wipe all decrypted private keys
-  console.log("Wiping decrypted wallet keys from memory...");
-  for (const wallet of activeSession.decryptedWallets) {
-    const keyBytes = hexToBytes(wallet.privateKey.slice(2));
-    secureWipe(keyBytes);
+  // Wipe all decrypted private keys and data
+  console.log("Wiping decrypted data from memory...");
+  for (const entry of activeSession.decryptedWallets) {
+    if (entry.privateKey) {
+      const keyBytes = hexToBytes(entry.privateKey.slice(2));
+      secureWipe(keyBytes);
+    }
+    if (entry.data) {
+      secureWipe(entry.data);
+    }
   }
 
   // Clear session state
@@ -785,7 +915,7 @@ async function viewEncryptedStore(): Promise<void> {
     return;
   }
 
-  const store: WalletStore = JSON.parse(fs.readFileSync(storePath, "utf-8"));
+  const store: EncryptedStore = JSON.parse(fs.readFileSync(storePath, "utf-8"));
 
   console.log("─".repeat(60));
   console.log("Store Details:");
@@ -799,7 +929,8 @@ async function viewEncryptedStore(): Promise<void> {
 
   console.log("Encrypted bundles (metadata only - contents encrypted):");
   store.bundles.slice(0, 10).forEach((bundle, i) => {
-    console.log(`  ${i + 1}. ${bundle.name}: ${bundle.address}`);
+    const detail = bundle.address ?? "(custom data)";
+    console.log(`  ${i + 1}. ${bundle.name}: ${detail}`);
   });
   if (store.bundles.length > 10) {
     console.log(`  ... and ${store.bundles.length - 10} more`);
