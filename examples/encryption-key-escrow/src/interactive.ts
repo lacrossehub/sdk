@@ -296,7 +296,7 @@ async function createEncryptionKey(): Promise<void> {
         privateKeyName: keyName,
         curve: "CURVE_P256" as any,
         addressFormats: [],
-        privateKeyTags: ["escrow", "encryption"],
+        privateKeyTags: [],
       },
     ],
   });
