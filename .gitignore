@@ -141,3 +141,4 @@ encrypted-wallet-store.json
 
 # Local utility tools (not for public repo)
 examples/keymaker/
+examples/payflow-example/
